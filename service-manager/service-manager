@@ -1,0 +1,97 @@
+#!/bin/sh
+#
+# Simple script to control a background service; provides start/stop/status/restart commands
+#
+# Usage:
+#   -copy this script and give it the name of your service, e.g. myservice
+#   -make sure it's executable: chmod +x myservice
+#   -customize at least the variables SERVICE_HOME and SERVICE_COMMAND below
+#   -test it: ./myservice start
+#
+# Author: Olivier Gérardin
+#
+
+# MANDATORY: Directory from where the service command must be launched
+SERVICE_HOME=~
+
+# MANDATORY: Command to start the service
+SERVICE_COMMAND="startService"
+
+# No customization required below this line
+
+# Unique system-wide identifier for this service
+SERVICE_NAME=`basename $0`
+
+# File where the process ID will be stored
+PID_FILE=/var/tmp/$SERVICE_NAME.pid
+
+
+checkpid() {
+    PID=0
+    if [ -f $PID_FILE ]; then
+        PID=$(cat $PID_FILE);
+        #kill -s 0 does not send any signal but only checks that the process is alive
+        kill -s 0 ${PID}
+        if [ $? -ne 0 ]
+        then
+            echo "Found stale PID file, cleaning up..." >&2
+            rm $PID_FILE
+            PID=0
+        fi
+    fi
+}
+
+start() {
+    checkpid
+    if [ $PID -ne 0 ]; then
+        echo "$SERVICE_NAME is already running."
+    else
+        echo "Starting $SERVICE_NAME..."
+        cd $SERVICE_HOME
+        nohup $SERVICE_COMMAND 2>> /dev/null >> /dev/null &
+        echo $! > $PID_FILE
+        echo "$SERVICE_NAME is started."
+    fi
+}
+
+stop() {
+    checkpid
+    if [ $PID -ne 0 ]; then
+        echo "Stopping $SERVICE_NAME..."
+        kill $PID
+        echo "$SERVICE_NAME is stopped."
+        rm $PID_FILE
+    else
+        echo "$SERVICE_NAME is not running."
+    fi
+}
+
+status() {
+    checkpid
+    if [ $PID -ne 0 ]; then
+        echo "$SERVICE_NAME is running ($PID)."
+    else
+        echo "$SERVICE_NAME is not running."
+    fi
+}
+
+
+# Main logic
+case "$1" in
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    status)
+        status
+        ;;
+    restart)
+        stop
+        start
+        ;;
+  *)
+    echo $"Usage: $0 {start|stop|status|restart}"
+    exit 1
+esac
